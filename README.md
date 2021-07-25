@@ -3,7 +3,7 @@ Simple Bot with minimal configuration needed, written in Golang to support Black
 
 # Configuration
 ## Creating Config File
-To run the bot u need to create a `config.yaml` file inside the [config folder](bcethabot/config)
+To run the bot u need to create a `config.yaml` file inside the [config folder](./config)
 ## Config File Format
 The Config File has to look similar to this
 ```yaml
@@ -22,7 +22,7 @@ VAR:
 - mod_role_id :   Roleid that is elidgeable to use the Bots Commands
 
 # Running
-To run the Bot after creating the config file you may simply use the provided `Makefile` which will create a binary depending on your os in [binaries](bcethabot/bin)
+To run the Bot after creating the config file you may simply use the provided `Makefile` which will create a binary depending on your os in [binaries](./bin)
 To compile the bot run `make` inside the root directory
 
 # Specs and external dependencies
