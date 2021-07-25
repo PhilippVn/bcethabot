@@ -1,12 +1,15 @@
+rootdir = $(realpath .)
+BUILD = go build -o
+RUN = go run
 .PHONY := all main run clean
 
 all: main
 
-main: main.go
-	go build -o bin/$@ $^
+main: $(rootdir)/src/main.go
+	$(BUILD) $(rootdir)/bin/$@ $^
 
-run: main.go
-	go run $^
+run: $(rootdir)/src/main.go
+	$(RUN) $^
 
 clean:
-	rm -f bin/main
+	rm -f  $(rootdir)/bin/main
