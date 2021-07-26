@@ -9,6 +9,9 @@ import (
 
 	"path/filepath"
 
+	"github.com/Zanos420/bcethabot/src/commands"
+	"github.com/Zanos420/bcethabot/src/commands/cmd"
+	"github.com/Zanos420/bcethabot/src/events"
 	"github.com/bwmarrin/discordgo"
 	"gopkg.in/yaml.v3"
 )
@@ -70,21 +73,19 @@ func main() {
 	fmt.Printf("Running on Auth-Token: %s\n", config.BOT.TOKEN)
 	bot, err := discordgo.New("Bot " + config.BOT.TOKEN)
 	if err != nil {
-		fmt.Println("Fatal Error while creating Discord session: ", err)
-		return
+		panic(err)
 	}
 
-	// Register the messageCreate func as a callback for MessageCreate events.
-	bot.AddHandler(messageCreate)
-
-	// Just like the ping pong example, we only care about receiving message
-	// events in this example.
-	bot.Identify.Intents = discordgo.IntentsGuildMessages
+	// bot should be able to listen to all events -> scaling shouldnt be a problem
+	bot.Identify.Intents = discordgo.MakeIntent(
+		discordgo.IntentsGuildMessages)
+	// register events the bot is listening to
+	registerEvents(bot)
+	registerCommands(bot, config)
 
 	err = bot.Open()
 	if err != nil {
-		fmt.Println("Error while opening websocket connection: ", err)
-		return
+		panic(err)
 	}
 
 	fmt.Println("Bot is running... Press Ctlr-C to exit.")
@@ -96,22 +97,17 @@ func main() {
 
 }
 
-// This function will be called (due to AddHandler above) every time a new
-// message is created on any channel that the authenticated bot has access to.
-//
-// It is called whenever a message is created but only when it's sent through a
-// server as we did not request IntentsDirectMessages.
-func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
-	// Ignore all messages created by the bot itself
-	// This isn't required in this specific example but it's a good practice.
-	if m.Author.ID == s.State.User.ID {
-		return
-	}
+func registerEvents(s *discordgo.Session) {
+	s.AddHandler(events.NewMessageHandler().Handler)
+	s.AddHandler(events.NewReadyHandler().Handler)
+	fmt.Println("Successfully hooked all Event Handlers")
+}
 
-	if m.Content == "ping" {
-		_, _ = s.ChannelMessageSend(m.ChannelID, "pong")
-	}
-	if m.Content == "huren" {
-		_, _ = s.ChannelMessageSend(m.ChannelID, "sohn")
-	}
+func registerCommands(s *discordgo.Session, cfg *Config) {
+	cmdHandler := commands.NewCommandHandler(cfg.BOT.PREFIX)
+	// Further Commands will be registered here
+	cmdHandler.RegisterCommand(&cmd.CmdPing{})
+
+	s.AddHandler(cmdHandler.HandleMessage)
+	fmt.Println("Successfully hooked all Command Handlers")
 }
