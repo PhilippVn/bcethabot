@@ -11,6 +11,7 @@ import (
 
 	"github.com/Zanos420/bcethabot/src/commands"
 	"github.com/Zanos420/bcethabot/src/commands/cmd"
+	"github.com/Zanos420/bcethabot/src/commands/mw"
 	"github.com/Zanos420/bcethabot/src/events"
 	"github.com/bwmarrin/discordgo"
 	"gopkg.in/yaml.v3"
@@ -28,8 +29,8 @@ type Config struct {
 		PREFIX string `yaml:"PREFIX"`
 	} `yaml:"BOT"`
 	VAR struct {
-		CATEGORYID int `yaml:"CATEGORY_ID"`
-		MODROLEID  int `yaml:"MOD_ROLE_ID"`
+		CATEGORYID string `yaml:"CATEGORY_ID"`
+		MODROLEID  string `yaml:"MOD_ROLE_ID"`
 	} `yaml:"VAR"`
 }
 
@@ -105,8 +106,17 @@ func registerEvents(s *discordgo.Session) {
 
 func registerCommands(s *discordgo.Session, cfg *Config) {
 	cmdHandler := commands.NewCommandHandler(cfg.BOT.PREFIX)
-	// Further Commands will be registered here
-	cmdHandler.RegisterCommand(&cmd.CmdPing{})
+
+	// Commands
+	cmdHandler.RegisterCommand(cmd.NewCmdPing())
+	cmdHandler.RegisterCommand(cmd.NewCmdTempChannel(cfg.VAR.CATEGORYID))
+	cmdHandler.RegisterCommand(cmd.NewCmdNuke(cfg.VAR.CATEGORYID))
+
+	// Help command after registrating all other commands
+	cmdHandler.RegisterCommand(cmd.NewCmdHelp(cfg.BOT.PREFIX, cmdHandler.CmdInstances))
+
+	// Middlewares
+	cmdHandler.RegisterMiddleware(mw.NewMwPermissions(cfg.VAR.MODROLEID))
 
 	s.AddHandler(cmdHandler.HandleMessage)
 	fmt.Println("Successfully hooked all Command Handlers")

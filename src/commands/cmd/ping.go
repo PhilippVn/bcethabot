@@ -10,14 +10,18 @@ import (
 
 type CmdPing struct{}
 
+func NewCmdPing() *CmdPing {
+	return &CmdPing{}
+}
+
 func (c *CmdPing) Invokes() []string {
 	return []string{"ping", "p"} // Invokes and alias
 }
 func (c *CmdPing) Description() string {
 	return "Pong!"
 }
-func (c *CmdPing) AdminOnly() bool {
-	return false
+func (c *CmdPing) PermissionsNeeded() bool {
+	return true
 }
 func (c *CmdPing) Exec(ctx *commands.Context) (err error) {
 	p, err := discordgo.SnowflakeTimestamp(ctx.Message.ID)
