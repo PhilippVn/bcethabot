@@ -12,8 +12,8 @@ BOT:
  PREFIX: "<prefix>"
 
 VAR:
- CATEGORY_ID: <categoryid>
- MOD_ROLE_ID: <roleid>
+ CATEGORY_ID: "<categoryid>"
+ MOD_ROLE_ID: "<roleid>"
 ```
 ## Explanation of Config File Values
 - token       :   Token of your Discord Application/Bot. The Bot will use this token to auth with the websocket (Dont share your token!)
