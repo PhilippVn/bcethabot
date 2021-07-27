@@ -19,8 +19,9 @@ import (
 )
 
 var (
-	config  *Config // ptr to Config struct
-	rootdir string  // path of the parent dir
+	config         *Config // ptr to Config struct
+	rootdir        string  // path of the parent dir
+	cmdTempHandler *cmd.CmdTempChannel
 	// config values
 	modcmd          bool
 	cooldown        bool
@@ -89,10 +90,12 @@ func main() {
 
 	// bot should be able to listen to all events -> scaling shouldnt be a problem
 	bot.Identify.Intents = discordgo.MakeIntent(
-		discordgo.IntentsGuildMessages)
+		discordgo.IntentsGuildMessages |
+			discordgo.IntentsGuildVoiceStates)
 	// register events the bot is listening to
-	registerEvents(bot)
 	registerCommands(bot, config)
+	// Important: register Events after the commands! -> tmpcmd has to be initialized for voicestateupdate event
+	registerEvents(bot, config)
 
 	err = bot.Open()
 	if err != nil {
@@ -108,9 +111,10 @@ func main() {
 
 }
 
-func registerEvents(s *discordgo.Session) {
+func registerEvents(s *discordgo.Session, cfg *Config) {
 	s.AddHandler(events.NewMessageHandler().Handler)
 	s.AddHandler(events.NewReadyHandler().Handler)
+	s.AddHandler(events.NewVoiceStateUpdateHandler(&cmdTempHandler.TempChannels, &cmdTempHandler.TempChannelOwners, cfg.VAR.CATEGORYID).Handler)
 	fmt.Println("Successfully hooked all Event Handlers")
 }
 
@@ -120,8 +124,9 @@ func registerCommands(s *discordgo.Session, cfg *Config) {
 
 	// Commands
 	cmdHandler.RegisterCommand(cmd.NewCmdPing())
-	cmdHandler.RegisterCommand(cmd.NewCmdTempChannel(cfg.VAR.CATEGORYID))
-	cmdHandler.RegisterCommand(cmd.NewCmdNuke(cfg.VAR.CATEGORYID))
+	cmdTempHandler = cmd.NewCmdTempChannel(cfg.VAR.CATEGORYID, s)
+	cmdHandler.RegisterCommand(cmdTempHandler)
+	cmdHandler.RegisterCommand(cmd.NewCmdNuke(cfg.VAR.CATEGORYID, &cmdTempHandler.TempChannels, &cmdTempHandler.TempChannelOwners))
 
 	// Help command after registrating all other commands
 	cmdHandler.RegisterCommand(cmd.NewCmdHelp(cfg.BOT.PREFIX, cmdHandler.CmdInstances))
@@ -140,6 +145,9 @@ func registerCommands(s *discordgo.Session, cfg *Config) {
 		panic(err)
 	}
 	modexcluded, err = strconv.ParseBool(cfg.VAR.MODEXCLUDED)
+	if err != nil {
+		panic(err)
+	}
 	if cooldown {
 		cooldownseconds, err = strconv.Atoi(cfg.VAR.COOLDOWNSECONDS)
 		if err != nil {

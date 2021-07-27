@@ -135,8 +135,8 @@ func (mw *MwCooldown) Exec(ctx *commands.Context, cmd commands.Command) (next bo
 	}
 }
 
-func (mw *MwCooldown) printMap(mapping sync.Map) {
-	fmt.Println("Cooldown Map:{")
+func PrintMap(mapping sync.Map) {
+	fmt.Println("Map:{")
 	mapping.Range(func(key, value interface{}) bool {
 		fmt.Printf("Userid:%s\n", key.(string))
 		for _, pair := range value.([]Pair) {

@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"sync"
 
 	"github.com/Zanos420/bcethabot/src/commands"
 	customerror "github.com/Zanos420/bcethabot/src/error"
@@ -9,18 +10,24 @@ import (
 )
 
 type CmdNuke struct {
-	CATEGORY_ID string
+	CATEGORY_ID                string
+	tmpChannelsMapImport       *sync.Map
+	tmpChannelsOwnersMapImport *sync.Map
 }
 
-func NewCmdNuke(categoryID string) *CmdNuke {
-	return &CmdNuke{CATEGORY_ID: categoryID}
+func NewCmdNuke(categoryID string, tmpChannelsMap *sync.Map, tmpChannelsOwnersMap *sync.Map) *CmdNuke {
+	return &CmdNuke{
+		CATEGORY_ID:                categoryID,
+		tmpChannelsMapImport:       tmpChannelsMap,
+		tmpChannelsOwnersMapImport: tmpChannelsOwnersMap,
+	}
 }
 
 func (c *CmdNuke) Invokes() []string {
 	return []string{"nuke", "n"} // Invokes and alias
 }
 func (c *CmdNuke) Description() string {
-	return "Deletes all Channels in the Temporary Channel Category"
+	return "Deletes all Channels in the Temporary Channel Category + Cleans the Temp Channel Cache"
 }
 func (c *CmdNuke) PermissionsNeeded() bool {
 	return true
@@ -67,7 +74,9 @@ func (c *CmdNuke) Exec(ctx *commands.Context) (err error) {
 			}
 		}
 	}
-
+	// clean caches
+	*c.tmpChannelsMapImport = sync.Map{}
+	*c.tmpChannelsOwnersMapImport = sync.Map{}
 	_, err = ctx.Session.ChannelMessageSend(ctx.Message.ChannelID, fmt.Sprintf(":white_check_mark: Nuked Temp Category: `%s`", tmpcategory.Name))
 	return
 }
