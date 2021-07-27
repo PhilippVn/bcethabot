@@ -1,34 +1,38 @@
 package commands
 
 import (
+	"fmt"
 	"strings"
 
+	customerror "github.com/Zanos420/bcethabot/src/error"
 	"github.com/bwmarrin/discordgo"
 )
 
 // main class that will be used for parsing and excecuting commands
 type CommandHandler struct {
-	prefix string
+	Prefix string
 
-	cmdInstances []Command          // Using Command Interface so all Commands can be saved
+	CmdInstances []Command          // Using Command Interface so all Commands can be saved
 	cmdMap       map[string]Command // mapping invoke/alias to Command
 	middlewares  []Middleware
 
 	OnError func(err error, ctx *Context) // Public Error fun: Will be Excecuted when a Error occurrs
 }
 
-func NewCommandHandler(prefix string) *CommandHandler {
+func NewCommandHandler(Prefix string) *CommandHandler {
 	return &CommandHandler{
-		prefix:       prefix,
-		cmdInstances: make([]Command, 0),
+		Prefix:       Prefix,
+		CmdInstances: make([]Command, 0),
 		cmdMap:       make(map[string]Command),
 		middlewares:  make([]Middleware, 0),
-		OnError:      func(error, *Context) {}, // fallback if nil
+		OnError: func(err error, ctx *Context) { // default error funtion
+			ctx.Session.ChannelMessageSend(ctx.Message.ChannelID, fmt.Sprintf("Command Excecution failed: %s", err.Error()))
+		},
 	}
 }
 
 func (c *CommandHandler) RegisterCommand(cmd Command) {
-	c.cmdInstances = append(c.cmdInstances, cmd) // create new array -> fixed size
+	c.CmdInstances = append(c.CmdInstances, cmd) // create new array -> fixed size
 	for _, invoke := range cmd.Invokes() {       // register all invokes (alias too)
 		c.cmdMap[invoke] = cmd
 	}
@@ -40,11 +44,11 @@ func (c *CommandHandler) RegisterMiddleware(mw Middleware) {
 
 func (c *CommandHandler) HandleMessage(s *discordgo.Session, e *discordgo.MessageCreate) {
 	// Check if the author is a Bot or if the msg statrts
-	if e.Author.ID == s.State.User.ID || e.Author.Bot || !strings.HasPrefix(e.Content, c.prefix) {
+	if e.Author.ID == s.State.User.ID || e.Author.Bot || !strings.HasPrefix(e.Content, c.Prefix) {
 		return
 	}
-	// split Message by prefix and whitespaces -> invoke and arg are seperated
-	split := strings.Split(e.Content[len(c.prefix):], " ")
+	// split Message by Prefix and whitespaces -> invoke and arg are seperated
+	split := strings.Split(e.Content[len(c.Prefix):], " ")
 
 	if len(split) < 1 {
 		return
@@ -55,6 +59,10 @@ func (c *CommandHandler) HandleMessage(s *discordgo.Session, e *discordgo.Messag
 	// Check if valid Command
 	cmd, ok := c.cmdMap[invoke]
 	if !ok || cmd == nil {
+		_, err := s.ChannelMessageSend(e.GuildID, customerror.NewCommandNotFoundError().Error())
+		if err != nil {
+			return
+		}
 		return
 	}
 

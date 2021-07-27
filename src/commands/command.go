@@ -7,6 +7,7 @@ package commands
 type Command interface {
 	Invokes() []string       // first element of the slice is the invoke the rest are alias
 	Description() string     // short description of the command
-	AdminOnly() bool         // true if command requires admin permissions
-	Exec(ctx *Context) error // Function that is excecuted when command is issued with Context
+	PermissionsNeeded() bool // true if command requires permission role
+	CooldownLocked() bool    // true if command has cooldown for users without role
+	Exec(ctx *Context) error // Function that is excecuted when command is issued
 }
