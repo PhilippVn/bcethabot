@@ -31,6 +31,11 @@ func (c *CmdHelp) Description() string {
 func (c *CmdHelp) PermissionsNeeded() bool {
 	return false
 }
+
+func (c *CmdHelp) CooldownLocked() bool {
+	return true
+}
+
 func (c *CmdHelp) Exec(ctx *commands.Context) (err error) {
 	if len(ctx.Args) > 0 {
 		err = customerror.NewTooManyArgsError()

@@ -35,10 +35,10 @@ func (mw *MwPermissions) Exec(ctx *commands.Context, cmd commands.Command) (next
 		return
 	}
 
-	if guild.OwnerID == ctx.Message.Author.ID { // owner of the guild
-		next = true
-		return
-	}
+	// if guild.OwnerID == ctx.Message.Author.ID { // owner of the guild
+	// 	next = true
+	// 	return
+	// }
 
 	roleMap := make(map[string]*discordgo.Role)
 
@@ -49,10 +49,10 @@ func (mw *MwPermissions) Exec(ctx *commands.Context, cmd commands.Command) (next
 
 	// check if any of the authors roles has admin perms or is the mod role set in config.yaml
 	for _, rID := range ctx.Message.Member.Roles {
-		if role, ok := roleMap[rID]; ok && role.Permissions&discordgo.PermissionAdministrator > 0 { // logical and with 0b1000 = admin
-			next = true
-			break
-		}
+		// if role, ok := roleMap[rID]; ok && role.Permissions&discordgo.PermissionAdministrator > 0 { // logical and with 0b1000 = admin
+		// 	next = true
+		// 	break
+		// }
 		if mw.MOD_ROLE_ID == rID {
 			next = true
 			break

@@ -5,6 +5,7 @@ import (
 	"io/ioutil"
 	"os"
 	"os/signal"
+	"strconv"
 	"syscall"
 
 	"path/filepath"
@@ -20,6 +21,11 @@ import (
 var (
 	config  *Config // ptr to Config struct
 	rootdir string  // path of the parent dir
+	// config values
+	modcmd          bool
+	cooldown        bool
+	modexcluded     bool
+	cooldownseconds int
 )
 
 /* config struct which caches all config data from the config file */
@@ -29,8 +35,12 @@ type Config struct {
 		PREFIX string `yaml:"PREFIX"`
 	} `yaml:"BOT"`
 	VAR struct {
-		CATEGORYID string `yaml:"CATEGORY_ID"`
-		MODROLEID  string `yaml:"MOD_ROLE_ID"`
+		CATEGORYID      string `yaml:"CATEGORY_ID"`
+		MODCMD          string `yaml:"MOD_CMD"`
+		MODROLEID       string `yaml:"MOD_ROLE_ID"`
+		COOLDOWN        string `yaml:"CMD_COOLDOWN"`
+		MODEXCLUDED     string `yaml:"MOD_EXCLUDED"`
+		COOLDOWNSECONDS string `yaml:"CMD_COOLDOWN_SECONDS"`
 	} `yaml:"VAR"`
 }
 
@@ -105,6 +115,7 @@ func registerEvents(s *discordgo.Session) {
 }
 
 func registerCommands(s *discordgo.Session, cfg *Config) {
+	var err error
 	cmdHandler := commands.NewCommandHandler(cfg.BOT.PREFIX)
 
 	// Commands
@@ -116,7 +127,26 @@ func registerCommands(s *discordgo.Session, cfg *Config) {
 	cmdHandler.RegisterCommand(cmd.NewCmdHelp(cfg.BOT.PREFIX, cmdHandler.CmdInstances))
 
 	// Middlewares
-	cmdHandler.RegisterMiddleware(mw.NewMwPermissions(cfg.VAR.MODROLEID))
+	modcmd, err = strconv.ParseBool(cfg.VAR.MODCMD)
+	if err != nil {
+		panic(err)
+	}
+	if modcmd {
+		cmdHandler.RegisterMiddleware(mw.NewMwPermissions(cfg.VAR.MODROLEID))
+	}
+
+	cooldown, err = strconv.ParseBool(cfg.VAR.COOLDOWN)
+	if err != nil {
+		panic(err)
+	}
+	modexcluded, err = strconv.ParseBool(cfg.VAR.MODEXCLUDED)
+	if cooldown {
+		cooldownseconds, err = strconv.Atoi(cfg.VAR.COOLDOWNSECONDS)
+		if err != nil {
+			panic(err)
+		}
+		cmdHandler.RegisterMiddleware(mw.NewMwCooldown(cooldownseconds, modexcluded, cfg.VAR.MODROLEID))
+	}
 
 	s.AddHandler(cmdHandler.HandleMessage)
 	fmt.Println("Successfully hooked all Command Handlers")

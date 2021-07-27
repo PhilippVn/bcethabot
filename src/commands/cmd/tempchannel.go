@@ -28,6 +28,9 @@ func (c *CmdTempChannel) Description() string {
 func (c *CmdTempChannel) PermissionsNeeded() bool {
 	return false
 }
+func (c *CmdTempChannel) CooldownLocked() bool {
+	return true
+}
 func (c *CmdTempChannel) Exec(ctx *commands.Context) (err error) {
 	var tmpcategory *discordgo.Channel
 	tmpcategory, err = ctx.Session.Channel(c.CATEGORY_ID)

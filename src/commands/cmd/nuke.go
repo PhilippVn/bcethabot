@@ -25,6 +25,9 @@ func (c *CmdNuke) Description() string {
 func (c *CmdNuke) PermissionsNeeded() bool {
 	return true
 }
+func (c *CmdNuke) CooldownLocked() bool {
+	return true
+}
 func (c *CmdNuke) Exec(ctx *commands.Context) (err error) {
 	var tmpcategory *discordgo.Channel
 	tmpcategory, err = ctx.Session.Channel(c.CATEGORY_ID)
