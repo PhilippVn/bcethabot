@@ -45,13 +45,18 @@ func (c *CmdHelp) Exec(ctx *commands.Context) (err error) {
 	emb := embed.NewEmbed()
 
 	emb.SetTitle(fmt.Sprintf("%s - Helppage", ctx.Session.State.User.String()))
-	emb.SetDescription(fmt.Sprintf("**__Commands - Bot Prefix:__ %s**", c.prefix))
+	emb.SetDescription(fmt.Sprintf("**__Commands - Bot Prefix:__ %s**\nCommands with a * require special permissions", c.prefix))
 	emb.SetThumbnail(ctx.Session.State.User.AvatarURL(""))
 	emb.SetColor(0xE42D30)
 	emb.InlineAllFields()
 
 	for _, cmd := range c.cmdInstances {
-		emb.AddField(cmd.Invokes()[0], fmt.Sprintf("%s (alias: %s)", cmd.Description(), strings.Join(cmd.Invokes()[:len(cmd.Invokes())], ", ")))
+		if cmd.PermissionsNeeded() {
+			emb.AddField(fmt.Sprint("*", cmd.Invokes()[0]), fmt.Sprintf("%s (alias: %s)", cmd.Description(), strings.Join(cmd.Invokes()[:len(cmd.Invokes())], ", ")))
+		} else {
+			emb.AddField(cmd.Invokes()[0], fmt.Sprintf("%s (alias: %s)", cmd.Description(), strings.Join(cmd.Invokes()[:len(cmd.Invokes())], ", ")))
+		}
+
 	}
 	var owner *discordgo.User
 	owner, err = ctx.Session.User("276414411881578497")

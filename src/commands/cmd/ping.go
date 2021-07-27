@@ -32,6 +32,6 @@ func (c *CmdPing) Exec(ctx *commands.Context) (err error) {
 	p, err := discordgo.SnowflakeTimestamp(ctx.Message.ID)
 	diff := time.Until(p)
 	ping := diff.Milliseconds()
-	ctx.Session.ChannelMessageSend(ctx.Message.ChannelID, fmt.Sprintf("🏓Pong! (Took %v ms)", ping))
+	ctx.Session.ChannelMessageSend(ctx.Message.ChannelID, fmt.Sprintf("🏓Pong! (Took %v ms)", -ping))
 	return
 }
