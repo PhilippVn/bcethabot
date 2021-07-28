@@ -4,33 +4,27 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/Zanos420/bcethabot/src/commands"
 	customerror "github.com/Zanos420/bcethabot/src/error"
+	"github.com/Zanos420/bcethabot/src/util/cache"
 	"github.com/bwmarrin/discordgo"
 )
 
 // This command lets you create temp channels for the given category
 type CmdTempChannel struct {
-	CATEGORY_ID       string
-	TempChannels      sync.Map           // map userid -> Triple[channel, created_at,time_since_empty]
-	TempChannelOwners sync.Map           // map channelid -> userid
+	categoryID        string
+	cacheTempChannels *cache.CacheTempChannel
+	cacheOwners       *cache.CacheOwner
 	session           *discordgo.Session // session needed for deleting tmpchannels
 }
 
-type TempChannelTriple struct {
-	Channel          discordgo.Channel
-	Created_at       time.Time
-	Time_since_empty time.Time // time since the channel is empty
-}
-
-func NewCmdTempChannel(categoryID string, bot *discordgo.Session) (ct *CmdTempChannel) {
+func NewCmdTempChannel(tempChannels *cache.CacheTempChannel, owners *cache.CacheOwner, categoryID string, bot *discordgo.Session) (ct *CmdTempChannel) {
 	ct = &CmdTempChannel{
-		CATEGORY_ID:       categoryID,
-		TempChannels:      sync.Map{},
-		TempChannelOwners: sync.Map{},
+		categoryID:        categoryID,
+		cacheTempChannels: tempChannels,
+		cacheOwners:       owners,
 		session:           bot,
 	}
 	go ct.HeartBeatTempChannelDelete()
@@ -39,7 +33,7 @@ func NewCmdTempChannel(categoryID string, bot *discordgo.Session) (ct *CmdTempCh
 
 // goroutine that will check the cached temp channels every minute and delete the empty ones that noone connected to for 1 min
 func (c *CmdTempChannel) HeartBeatTempChannelDelete() {
-	tmpcategory, err := c.session.Channel(c.CATEGORY_ID)
+	tmpcategory, err := c.session.Channel(c.categoryID)
 	if err != nil {
 		panic(err)
 	}
@@ -57,8 +51,8 @@ func (c *CmdTempChannel) HeartBeatTempChannelDelete() {
 			select {
 			case <-ticker.C:
 				// iterating over cached tmpChannels
-				c.TempChannels.Range(func(key, value interface{}) bool {
-					val := value.(TempChannelTriple)
+				c.cacheTempChannels.Cache.Range(func(key, value interface{}) bool {
+					val := value.(cache.TmpEntry)
 					diff := time.Until(val.Time_since_empty)
 					diffcreation := time.Until(val.Created_at)
 					// channel can be empty for 2 min after creation and will be deleted after 1 min of being empty
@@ -68,8 +62,8 @@ func (c *CmdTempChannel) HeartBeatTempChannelDelete() {
 							fmt.Printf("Failed to heartbeat clean temporary Channel %s: %s\n", val.Channel.Name, err)
 						}
 						// delete keys from maps
-						c.TempChannelOwners.Delete(val.Channel.ID)
-						c.TempChannels.Delete(key)
+						c.cacheOwners.Cache.Delete(val.Channel.ID)
+						c.cacheTempChannels.Cache.Delete(key)
 					}
 					return true
 				})
@@ -97,7 +91,7 @@ func (c *CmdTempChannel) CooldownLocked() bool {
 }
 func (c *CmdTempChannel) Exec(ctx *commands.Context) (err error) {
 	var tmpcategory *discordgo.Channel
-	tmpcategory, err = ctx.Session.Channel(c.CATEGORY_ID)
+	tmpcategory, err = ctx.Session.Channel(c.categoryID)
 	if err != nil {
 		return
 	}
@@ -141,10 +135,10 @@ func (c *CmdTempChannel) Exec(ctx *commands.Context) (err error) {
 		return
 	}
 
-	t, ok := c.TempChannels.Load(ctx.Message.Author.ID)
+	t, ok := c.cacheTempChannels.Cache.Load(ctx.Message.Author.ID)
 	// user has created a temp channel already
 	if ok {
-		triple := t.(TempChannelTriple)
+		triple := t.(cache.TmpEntry)
 		_, err = ctx.Session.ChannelMessageSend(ctx.Message.ChannelID, fmt.Sprintf(":x: You already created a temp channel: `%s` %v seconds ago", triple.Channel.Name, (int)(-time.Until(triple.Created_at).Seconds())))
 		return
 	}
@@ -154,14 +148,14 @@ func (c *CmdTempChannel) Exec(ctx *commands.Context) (err error) {
 		tmpchannel = discordgo.GuildChannelCreateData{
 			Name:      chName,
 			Type:      discordgo.ChannelTypeGuildVoice,
-			ParentID:  c.CATEGORY_ID,
+			ParentID:  c.categoryID,
 			UserLimit: chLimit,
 		}
 	} else {
 		tmpchannel = discordgo.GuildChannelCreateData{
 			Name:     chName,
 			Type:     discordgo.ChannelTypeGuildVoice,
-			ParentID: c.CATEGORY_ID,
+			ParentID: c.categoryID,
 		}
 	}
 	newchannel, err := ctx.Session.GuildChannelCreateComplex(ctx.Message.GuildID, tmpchannel)
@@ -169,8 +163,8 @@ func (c *CmdTempChannel) Exec(ctx *commands.Context) (err error) {
 		return
 	}
 	// register channel creation in maps
-	c.TempChannels.Store(ctx.Message.Author.ID, TempChannelTriple{*newchannel, time.Now(), time.Now()})
-	c.TempChannelOwners.Store(newchannel.ID, ctx.Message.Author.ID)
+	c.cacheTempChannels.Cache.Store(ctx.Message.Author.ID, cache.NewEntry(newchannel, time.Now(), time.Now()))
+	c.cacheOwners.Cache.Store(newchannel.ID, ctx.Message.Author.ID)
 	ctx.Session.ChannelMessageSend(ctx.Message.ChannelID, fmt.Sprintf(":white_check_mark: Temporary Channel `%s` created.\nAttention: Channel will be deleted when nobody is in channel!", chName))
 
 	var newchannelInv *discordgo.Invite = &discordgo.Invite{

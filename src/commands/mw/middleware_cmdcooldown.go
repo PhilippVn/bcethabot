@@ -13,10 +13,10 @@ import (
 // All Users without special role get cooldown blocked when they issue a cooldown command
 // works with FiFo principle
 type MwCooldown struct {
-	usersOnCooldown sync.Map // map of userirds to lists of Pair{cmd,issued_at}
-	coolDownSeconds int      // seconds of cooldown for each command
-	modexcluded     bool     // wether mods are excluded from the cooldown
-	modroleID       string   // mod role
+	usersOnCooldown *sync.Map // map of userirds to lists of Pair{cmd,issued_at}
+	coolDownSeconds int       // seconds of cooldown for each command
+	modexcluded     bool      // wether mods are excluded from the cooldown
+	modroleID       string    // mod role
 }
 
 type Pair struct {
@@ -26,7 +26,7 @@ type Pair struct {
 
 func NewMwCooldown(cooldownInSeconds int, modExcluded bool, modroleId string) (mw *MwCooldown) {
 	mw = &MwCooldown{
-		usersOnCooldown: sync.Map{},
+		usersOnCooldown: &sync.Map{},
 		coolDownSeconds: cooldownInSeconds,
 		modexcluded:     modExcluded,
 		modroleID:       modroleId,

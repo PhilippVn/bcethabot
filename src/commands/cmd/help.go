@@ -12,14 +12,10 @@ import (
 )
 
 type CmdHelp struct {
-	prefix       string
-	cmdInstances []commands.Command // all commands -> from cmd handler
 }
 
-func NewCmdHelp(prefix string, commands []commands.Command) *CmdHelp {
-	return &CmdHelp{
-		prefix:       prefix,
-		cmdInstances: commands}
+func NewCmdHelp() *CmdHelp {
+	return &CmdHelp{}
 }
 
 func (c *CmdHelp) Invokes() []string {
@@ -45,12 +41,12 @@ func (c *CmdHelp) Exec(ctx *commands.Context) (err error) {
 	emb := embed.NewEmbed()
 
 	emb.SetTitle(fmt.Sprintf("%s - Helppage", ctx.Session.State.User.String()))
-	emb.SetDescription(fmt.Sprintf("**__Commands - Bot Prefix:__ %s**\nCommands with a * require special permissions", c.prefix))
+	emb.SetDescription(fmt.Sprintf("**__Commands - Bot Prefix:__ %s**\nCommands with a * require special permissions", ctx.Handler.Prefix))
 	emb.SetThumbnail(ctx.Session.State.User.AvatarURL(""))
 	emb.SetColor(0xE42D30)
 	emb.InlineAllFields()
 
-	for _, cmd := range c.cmdInstances {
+	for _, cmd := range ctx.Handler.CmdInstances {
 		if cmd.PermissionsNeeded() {
 			emb.AddField(fmt.Sprint("*", cmd.Invokes()[0]), fmt.Sprintf("%s (alias: %s)", cmd.Description(), strings.Join(cmd.Invokes()[:len(cmd.Invokes())], ", ")))
 		} else {

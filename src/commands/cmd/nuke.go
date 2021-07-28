@@ -6,20 +6,21 @@ import (
 
 	"github.com/Zanos420/bcethabot/src/commands"
 	customerror "github.com/Zanos420/bcethabot/src/error"
+	"github.com/Zanos420/bcethabot/src/util/cache"
 	"github.com/bwmarrin/discordgo"
 )
 
 type CmdNuke struct {
-	CATEGORY_ID                string
-	tmpChannelsMapImport       *sync.Map
-	tmpChannelsOwnersMapImport *sync.Map
+	categoryID        string
+	cacheTempChannels *cache.CacheTempChannel
+	cacheOwners       *cache.CacheOwner
 }
 
-func NewCmdNuke(categoryID string, tmpChannelsMap *sync.Map, tmpChannelsOwnersMap *sync.Map) *CmdNuke {
+func NewCmdNuke(tempchannels *cache.CacheTempChannel, owners *cache.CacheOwner, categoryID string) *CmdNuke {
 	return &CmdNuke{
-		CATEGORY_ID:                categoryID,
-		tmpChannelsMapImport:       tmpChannelsMap,
-		tmpChannelsOwnersMapImport: tmpChannelsOwnersMap,
+		categoryID:        categoryID,
+		cacheTempChannels: tempchannels,
+		cacheOwners:       owners,
 	}
 }
 
@@ -37,7 +38,7 @@ func (c *CmdNuke) CooldownLocked() bool {
 }
 func (c *CmdNuke) Exec(ctx *commands.Context) (err error) {
 	var tmpcategory *discordgo.Channel
-	tmpcategory, err = ctx.Session.Channel(c.CATEGORY_ID)
+	tmpcategory, err = ctx.Session.Channel(c.categoryID)
 	if err != nil {
 		return
 	}
@@ -63,7 +64,7 @@ func (c *CmdNuke) Exec(ctx *commands.Context) (err error) {
 
 	var del *discordgo.Channel
 	for _, channel := range guildchannels {
-		if channel.ParentID == c.CATEGORY_ID {
+		if channel.ParentID == c.categoryID {
 			del, err = ctx.Session.ChannelDelete(channel.ID)
 			if err != nil {
 				return
@@ -75,8 +76,8 @@ func (c *CmdNuke) Exec(ctx *commands.Context) (err error) {
 		}
 	}
 	// clean caches
-	*c.tmpChannelsMapImport = sync.Map{}
-	*c.tmpChannelsOwnersMapImport = sync.Map{}
+	c.cacheTempChannels.Cache = &sync.Map{}
+	c.cacheOwners.Cache = &sync.Map{}
 	_, err = ctx.Session.ChannelMessageSend(ctx.Message.ChannelID, fmt.Sprintf(":white_check_mark: Nuked Temp Category: `%s`", tmpcategory.Name))
 	return
 }

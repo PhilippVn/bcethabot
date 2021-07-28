@@ -2,28 +2,25 @@ package events
 
 import (
 	"fmt"
-	"sync"
 	"time"
 
-	"github.com/Zanos420/bcethabot/src/commands/cmd"
+	"github.com/Zanos420/bcethabot/src/util/cache"
 	"github.com/bwmarrin/discordgo"
 )
 
 // this event is used to update the empty_since time for the cmdtmpchannel
-
-// struct for database integrationaccess later
 type VoiceStateUpdateHandler struct {
-	tmpChannelsMapImport       *sync.Map
-	tmpChannelsOwnersMapImport *sync.Map
-	categoryID                 string
+	cacheTempChannels *cache.CacheTempChannel
+	cacheOwners       *cache.CacheOwner
+	categoryID        string
 }
 
 // Needs the Map from cmdtmpchannel
-func NewVoiceStateUpdateHandler(tmpChannelsMap *sync.Map, tmpChannelsOwnersMap *sync.Map, categoryId string) *VoiceStateUpdateHandler {
+func NewVoiceStateUpdateHandler(tempChannels *cache.CacheTempChannel, owners *cache.CacheOwner, categoryId string) *VoiceStateUpdateHandler {
 	return &VoiceStateUpdateHandler{
-		tmpChannelsMapImport:       tmpChannelsMap,
-		tmpChannelsOwnersMapImport: tmpChannelsOwnersMap,
-		categoryID:                 categoryId,
+		cacheTempChannels: tempChannels,
+		cacheOwners:       owners,
+		categoryID:        categoryId,
 	}
 }
 
@@ -92,7 +89,7 @@ func (h *VoiceStateUpdateHandler) Handler(s *discordgo.Session, e *discordgo.Voi
 
 		//c.TempChannels.Store(ctx.Message.Author.ID, TempChannelTriple{*newchannel, time.Now(), time.Now()})
 		// we have to find the key (person who issued the command to create the channel)
-		chO, ok := h.tmpChannelsOwnersMapImport.Load(chID) // will give us the owner
+		chO, ok := h.cacheOwners.Cache.Load(chID) // will give us the owner
 		if !ok {
 			// channel not cached -> not created by bot
 			fmt.Println("Error while trying to fetch ownerid of tempchannel to update empty_since time of tmp channel")
@@ -101,22 +98,23 @@ func (h *VoiceStateUpdateHandler) Handler(s *discordgo.Session, e *discordgo.Voi
 		chOwnerID := chO.(string)
 
 		// map userid -> Triple[channel, created_at,time_since_empty]
-		mapT, ok := h.tmpChannelsMapImport.Load(chOwnerID)
+		mapT, ok := h.cacheTempChannels.Cache.Load(chOwnerID)
 		if !ok {
 			// channel not cached -> not created by bot
 			fmt.Println("Error while trying to fetch ownerid of tempchannel to update empty_since time of tmp channel")
 			return
 		}
 
-		mapTripleOld := mapT.(cmd.TempChannelTriple)
+		mapTripleOld := mapT.(cache.TmpEntry)
 
-		mapTripleNew := cmd.TempChannelTriple{
+		mapTripleNew := cache.TmpEntry{
 			Channel:          mapTripleOld.Channel,
 			Created_at:       mapTripleOld.Created_at,
 			Time_since_empty: time.Now(),
 		}
 
-		h.tmpChannelsMapImport.Store(chOwnerID, mapTripleNew)
+		// update with new mapTriple Data
+		h.cacheTempChannels.Cache.Store(chOwnerID, mapTripleNew)
 
 	}
 }

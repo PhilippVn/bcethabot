@@ -7,12 +7,12 @@ import (
 
 // permission middleware implements middleware
 type MwPermissions struct {
-	MOD_ROLE_ID string
+	modRoleID string
 }
 
 func NewMwPermissions(modRoleID string) *MwPermissions {
 	return &MwPermissions{
-		MOD_ROLE_ID: modRoleID,
+		modRoleID: modRoleID,
 	}
 }
 
@@ -53,7 +53,7 @@ func (mw *MwPermissions) Exec(ctx *commands.Context, cmd commands.Command) (next
 		// 	next = true
 		// 	break
 		// }
-		if mw.MOD_ROLE_ID == rID {
+		if mw.modRoleID == rID {
 			next = true
 			break
 		}
