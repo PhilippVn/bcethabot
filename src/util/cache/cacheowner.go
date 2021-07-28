@@ -7,7 +7,7 @@ type CacheOwner struct {
 	Cache *sync.Map
 }
 
-func (c *CacheOwner) NewCacheOwner() *CacheOwner {
+func NewCacheOwner() *CacheOwner {
 	return &CacheOwner{
 		Cache: &sync.Map{},
 	}

@@ -19,7 +19,7 @@ type TmpEntry struct {
 	Time_since_empty time.Time // time since the channel is empty
 }
 
-func (c *CacheTempChannel) NewCacheTempChannel() *CacheTempChannel {
+func NewCacheTempChannel() *CacheTempChannel {
 	return &CacheTempChannel{
 		Cache: &sync.Map{},
 	}
