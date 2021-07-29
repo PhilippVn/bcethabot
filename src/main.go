@@ -87,9 +87,8 @@ func main() {
 	}
 
 	// bot should be able to listen to all events -> scaling shouldnt be a problem
-	bot.Identify.Intents = discordgo.MakeIntent(
-		discordgo.IntentsGuildMessages |
-			discordgo.IntentsGuildVoiceStates)
+	bot.Identify.Intents = discordgo.MakeIntent(discordgo.IntentsAllWithoutPrivileged)
+	bot.StateEnabled = true // cache guild, members, ...
 	//initialize internal caches (temporary channel functions)
 	initializeCaches()
 	// register events the bot is listening to

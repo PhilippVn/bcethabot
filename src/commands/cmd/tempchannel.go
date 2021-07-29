@@ -38,7 +38,7 @@ func (c *CmdTempChannel) HeartBeatTempChannelDelete() {
 		panic(err)
 	}
 	if tmpcategory.Type != discordgo.ChannelTypeGuildCategory {
-		fmt.Println("Category Channel not confugured correctly!")
+		fmt.Println("Category Channel not configured correctly!")
 		return
 	}
 
@@ -53,6 +53,10 @@ func (c *CmdTempChannel) HeartBeatTempChannelDelete() {
 				// iterating over cached tmpChannels
 				c.cacheTempChannels.Cache.Range(func(key, value interface{}) bool {
 					val := value.(cache.TmpEntry)
+					// if the channel isnt empty we dont want to delete it
+					if !val.Empty {
+						return true
+					}
 					diff := time.Until(val.Time_since_empty)
 					diffcreation := time.Until(val.Created_at)
 					// channel can be empty for 2 min after creation and will be deleted after 1 min of being empty
@@ -64,6 +68,9 @@ func (c *CmdTempChannel) HeartBeatTempChannelDelete() {
 						// delete keys from maps
 						c.cacheOwners.Cache.Delete(val.Channel.ID)
 						c.cacheTempChannels.Cache.Delete(key)
+
+						fmt.Println(">> AFTER HEARTBEATDELETE")
+						c.cacheTempChannels.PrintCache(c.session)
 					}
 					return true
 				})
@@ -78,7 +85,7 @@ func (c *CmdTempChannel) HeartBeatTempChannelDelete() {
 }
 
 func (c *CmdTempChannel) Invokes() []string {
-	return []string{"tempchannel", "temp", "tc"} // Invokes and alias
+	return []string{"tempchannel", "temp", "tmp", "t"} // Invokes and alias
 }
 func (c *CmdTempChannel) Description() string {
 	return "Creates a temporary Channel for you and your friends.\nUsage: <prefix>tempchannel [channelname] [optional:max useranzahl]"
@@ -130,6 +137,11 @@ func (c *CmdTempChannel) Exec(ctx *commands.Context) (err error) {
 		return
 	}
 
+	if len([]rune(chName)) < 5 {
+		err = customerror.NewCustomError("That name is a little bit to short. Please choose a longer name (min 5 letters)!")
+		return
+	}
+
 	if limitSelected && (chLimit > 99 || chLimit < 1) {
 		err = customerror.NewCustomError("Invalid User limit. Please choose a number between 1-99!")
 		return
@@ -163,7 +175,7 @@ func (c *CmdTempChannel) Exec(ctx *commands.Context) (err error) {
 		return
 	}
 	// register channel creation in maps
-	c.cacheTempChannels.Cache.Store(ctx.Message.Author.ID, cache.NewEntry(newchannel, time.Now(), time.Now()))
+	c.cacheTempChannels.Cache.Store(ctx.Message.Author.ID, cache.NewEntry(newchannel, time.Now(), true, time.Now()))
 	c.cacheOwners.Cache.Store(newchannel.ID, ctx.Message.Author.ID)
 	ctx.Session.ChannelMessageSend(ctx.Message.ChannelID, fmt.Sprintf(":white_check_mark: Temporary Channel `%s` created.\nAttention: Channel will be deleted when nobody is in channel!", chName))
 
@@ -178,5 +190,7 @@ func (c *CmdTempChannel) Exec(ctx *commands.Context) (err error) {
 		return
 	}
 	ctx.Session.ChannelMessageSend(ctx.Message.ChannelID, fmt.Sprintf("https://discord.gg/%s", newchannelInv.Code))
+	fmt.Println(">>AFTER TEMPCMD")
+	c.cacheTempChannels.PrintCache(ctx.Session)
 	return
 }
