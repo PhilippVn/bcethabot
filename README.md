@@ -34,7 +34,7 @@ To run the Bot after creating the config file you may simply use the provided `M
 To compile the bot run `make` inside the root directory
 
 # Specs and external dependencies
-- Go `1.16`
+- [Go](https://golang.org/) `1.16`
 - [discordgo Api Wrapper](https://github.com/bwmarrin/discordgo) `0.23.2`
 - [discordgo Embed Libary](https://github.com/Clinet/discordgo-embed) `0.0.0`
 - [yaml3](https://gopkg.in/yaml.v3) `3.0.0`
