@@ -13,20 +13,19 @@ import (
 	"github.com/Zanos420/bcethabot/src/commands"
 	"github.com/Zanos420/bcethabot/src/commands/cmd"
 	"github.com/Zanos420/bcethabot/src/commands/mw"
+	"github.com/Zanos420/bcethabot/src/error/internalerror"
 	"github.com/Zanos420/bcethabot/src/events"
+	"github.com/Zanos420/bcethabot/src/util/cache"
 	"github.com/bwmarrin/discordgo"
 	"gopkg.in/yaml.v3"
 )
 
 var (
-	config         *Config // ptr to Config struct
-	rootdir        string  // path of the parent dir
-	cmdTempHandler *cmd.CmdTempChannel
-	// config values
-	modcmd          bool
-	cooldown        bool
-	modexcluded     bool
-	cooldownseconds int
+	config      *Config
+	rootdirPath string
+
+	cacheTempChannels *cache.CacheTempChannel
+	cacheOwners       *cache.CacheOwner
 )
 
 /* config struct which caches all config data from the config file */
@@ -49,13 +48,15 @@ type Config struct {
 func parseConfigFromYAMLFile(fileName string) (*Config, error) {
 	buf, err := ioutil.ReadFile(fileName)
 	if err != nil {
-		panic(err)
+		internalerror.Fatal(err)
+		os.Exit(0)
 	}
 	var con *Config = new(Config)
 
 	err = yaml.Unmarshal(buf, con)
 	if err != nil {
-		panic(err)
+		internalerror.Fatal(err)
+		os.Exit(0)
 	}
 	return con, err
 }
@@ -65,33 +66,38 @@ func init() {
 	rootdir, err := os.Getwd()
 	rootdir = filepath.Dir(rootdir)
 	if err != nil {
-		panic(err)
+		internalerror.Fatal(err)
+		os.Exit(0)
 	}
 	fmt.Println(rootdir)
 	configPath, err := filepath.Abs(rootdir + "/config/config.yaml")
 	if err != nil {
-		panic(err)
+		internalerror.Fatal(err)
+		os.Exit(0)
 	}
 	fmt.Println(configPath)
 	config, err = parseConfigFromYAMLFile(configPath)
 	if err != nil {
-		panic(err)
+		internalerror.Fatal(err)
+		os.Exit(0)
 	}
 }
 
 /* bot creation */
 func main() {
 	// Create a new Discord session using the provided bot token.
-	fmt.Printf("Running on Auth-Token: %s\n", config.BOT.TOKEN)
+	internalerror.Info("Running on Auth-Token: %s", config.BOT.TOKEN)
 	bot, err := discordgo.New("Bot " + config.BOT.TOKEN)
 	if err != nil {
-		panic(err)
+		internalerror.Fatal(err)
+		os.Exit(0)
 	}
 
 	// bot should be able to listen to all events -> scaling shouldnt be a problem
-	bot.Identify.Intents = discordgo.MakeIntent(
-		discordgo.IntentsGuildMessages |
-			discordgo.IntentsGuildVoiceStates)
+	bot.Identify.Intents = discordgo.MakeIntent(discordgo.IntentsAllWithoutPrivileged | discordgo.IntentsGuildMembers)
+	bot.StateEnabled = true // cache guild, members, ...
+	//initialize internal caches (temporary channel functions)
+	initializeCaches()
 	// register events the bot is listening to
 	registerCommands(bot, config)
 	// Important: register Events after the commands! -> tmpcmd has to be initialized for voicestateupdate event
@@ -99,7 +105,8 @@ func main() {
 
 	err = bot.Open()
 	if err != nil {
-		panic(err)
+		internalerror.Fatal(err)
+		os.Exit(0)
 	}
 
 	fmt.Println("Bot is running... Press Ctlr-C to exit.")
@@ -111,51 +118,61 @@ func main() {
 
 }
 
+func initializeCaches() {
+	cacheTempChannels = cache.NewCacheTempChannel()
+	cacheOwners = cache.NewCacheOwner()
+}
+
 func registerEvents(s *discordgo.Session, cfg *Config) {
 	s.AddHandler(events.NewMessageHandler().Handler)
 	s.AddHandler(events.NewReadyHandler().Handler)
-	s.AddHandler(events.NewVoiceStateUpdateHandler(&cmdTempHandler.TempChannels, &cmdTempHandler.TempChannelOwners, cfg.VAR.CATEGORYID).Handler)
-	fmt.Println("Successfully hooked all Event Handlers")
+	s.AddHandler(events.NewVoiceStateUpdateHandler(cacheTempChannels, cacheOwners, cfg.VAR.CATEGORYID).Handler)
+	internalerror.Info("Successfully hooked all Event Handlers")
 }
 
 func registerCommands(s *discordgo.Session, cfg *Config) {
-	var err error
+	// init command handler
 	cmdHandler := commands.NewCommandHandler(cfg.BOT.PREFIX)
 
 	// Commands
 	cmdHandler.RegisterCommand(cmd.NewCmdPing())
-	cmdTempHandler = cmd.NewCmdTempChannel(cfg.VAR.CATEGORYID, s)
+	cmdTempHandler := cmd.NewCmdTempChannel(cacheTempChannels, cacheOwners, cfg.VAR.CATEGORYID, s) // save reference for help command which depends on the cmdList
 	cmdHandler.RegisterCommand(cmdTempHandler)
-	cmdHandler.RegisterCommand(cmd.NewCmdNuke(cfg.VAR.CATEGORYID, &cmdTempHandler.TempChannels, &cmdTempHandler.TempChannelOwners))
+	cmdHandler.RegisterCommand(cmd.NewCmdNuke(cacheTempChannels, cacheOwners, cfg.VAR.CATEGORYID))
 
 	// Help command after registrating all other commands
-	cmdHandler.RegisterCommand(cmd.NewCmdHelp(cfg.BOT.PREFIX, cmdHandler.CmdInstances))
+	cmdHandler.RegisterCommand(cmd.NewCmdHelp())
 
 	// Middlewares
-	modcmd, err = strconv.ParseBool(cfg.VAR.MODCMD)
+	modcmd, err := strconv.ParseBool(cfg.VAR.MODCMD)
 	if err != nil {
-		panic(err)
+		internalerror.Fatal(err)
+		os.Exit(0)
 	}
 	if modcmd {
 		cmdHandler.RegisterMiddleware(mw.NewMwPermissions(cfg.VAR.MODROLEID))
 	}
 
-	cooldown, err = strconv.ParseBool(cfg.VAR.COOLDOWN)
+	cooldown, err := strconv.ParseBool(cfg.VAR.COOLDOWN)
 	if err != nil {
-		panic(err)
+		internalerror.Fatal(err)
+		os.Exit(0)
 	}
-	modexcluded, err = strconv.ParseBool(cfg.VAR.MODEXCLUDED)
+	modexcluded, err := strconv.ParseBool(cfg.VAR.MODEXCLUDED)
 	if err != nil {
-		panic(err)
+		internalerror.Fatal(err)
+		os.Exit(0)
 	}
 	if cooldown {
-		cooldownseconds, err = strconv.Atoi(cfg.VAR.COOLDOWNSECONDS)
+		cooldownseconds, err := strconv.Atoi(cfg.VAR.COOLDOWNSECONDS)
 		if err != nil {
-			panic(err)
+			internalerror.Fatal(err)
+			os.Exit(0)
 		}
 		cmdHandler.RegisterMiddleware(mw.NewMwCooldown(cooldownseconds, modexcluded, cfg.VAR.MODROLEID))
 	}
 
 	s.AddHandler(cmdHandler.HandleMessage)
-	fmt.Println("Successfully hooked all Command Handlers")
+	internalerror.Info("Successfully hooked all Command Handlers and Middlewares")
+
 }

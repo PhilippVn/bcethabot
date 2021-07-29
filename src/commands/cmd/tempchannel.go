@@ -1,36 +1,32 @@
 package cmd
 
+// Temp Channel Command Module
 import (
 	"fmt"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/Zanos420/bcethabot/src/commands"
 	customerror "github.com/Zanos420/bcethabot/src/error"
+	"github.com/Zanos420/bcethabot/src/error/internalerror"
+	"github.com/Zanos420/bcethabot/src/util/cache"
 	"github.com/bwmarrin/discordgo"
 )
 
 // This command lets you create temp channels for the given category
 type CmdTempChannel struct {
-	CATEGORY_ID       string
-	TempChannels      sync.Map           // map userid -> Triple[channel, created_at,time_since_empty]
-	TempChannelOwners sync.Map           // map channelid -> userid
+	categoryID        string
+	cacheTempChannels *cache.CacheTempChannel
+	cacheOwners       *cache.CacheOwner
 	session           *discordgo.Session // session needed for deleting tmpchannels
 }
 
-type TempChannelTriple struct {
-	Channel          discordgo.Channel
-	Created_at       time.Time
-	Time_since_empty time.Time // time since the channel is empty
-}
-
-func NewCmdTempChannel(categoryID string, bot *discordgo.Session) (ct *CmdTempChannel) {
+func NewCmdTempChannel(tempChannels *cache.CacheTempChannel, owners *cache.CacheOwner, categoryID string, bot *discordgo.Session) (ct *CmdTempChannel) {
 	ct = &CmdTempChannel{
-		CATEGORY_ID:       categoryID,
-		TempChannels:      sync.Map{},
-		TempChannelOwners: sync.Map{},
+		categoryID:        categoryID,
+		cacheTempChannels: tempChannels,
+		cacheOwners:       owners,
 		session:           bot,
 	}
 	go ct.HeartBeatTempChannelDelete()
@@ -39,12 +35,13 @@ func NewCmdTempChannel(categoryID string, bot *discordgo.Session) (ct *CmdTempCh
 
 // goroutine that will check the cached temp channels every minute and delete the empty ones that noone connected to for 1 min
 func (c *CmdTempChannel) HeartBeatTempChannelDelete() {
-	tmpcategory, err := c.session.Channel(c.CATEGORY_ID)
+	tmpcategory, err := c.session.Channel(c.categoryID)
 	if err != nil {
-		panic(err)
+		internalerror.Fatal(customerror.NewInvalidConfigurationError())
+		return
 	}
 	if tmpcategory.Type != discordgo.ChannelTypeGuildCategory {
-		fmt.Println("Category Channel not confugured correctly!")
+		internalerror.Fatal(customerror.NewInvalidConfigurationError())
 		return
 	}
 
@@ -57,19 +54,26 @@ func (c *CmdTempChannel) HeartBeatTempChannelDelete() {
 			select {
 			case <-ticker.C:
 				// iterating over cached tmpChannels
-				c.TempChannels.Range(func(key, value interface{}) bool {
-					val := value.(TempChannelTriple)
+				c.cacheTempChannels.Cache.Range(func(key, value interface{}) bool {
+					val := value.(cache.TmpEntry)
+					// if the channel isnt empty we dont want to delete it
+					if !val.Empty {
+						return true
+					}
 					diff := time.Until(val.Time_since_empty)
 					diffcreation := time.Until(val.Created_at)
 					// channel can be empty for 2 min after creation and will be deleted after 1 min of being empty
 					if diff.Minutes() <= -1 && diffcreation.Minutes() <= -2 {
 						_, err := c.session.ChannelDelete(val.Channel.ID)
 						if err != nil {
-							fmt.Printf("Failed to heartbeat clean temporary Channel %s: %s\n", val.Channel.Name, err)
+							internalerror.Error(customerror.NewCustomError(fmt.Sprintf("Failed to heartbeat clean temporary Channel %s: %s\n", val.Channel.Name, err)))
 						}
 						// delete keys from maps
-						c.TempChannelOwners.Delete(val.Channel.ID)
-						c.TempChannels.Delete(key)
+						c.cacheOwners.Cache.Delete(val.Channel.ID)
+						c.cacheTempChannels.Cache.Delete(key)
+
+						fmt.Println(">> AFTER HEARTBEATDELETE")
+						c.cacheTempChannels.PrintCache(c.session)
 					}
 					return true
 				})
@@ -84,7 +88,7 @@ func (c *CmdTempChannel) HeartBeatTempChannelDelete() {
 }
 
 func (c *CmdTempChannel) Invokes() []string {
-	return []string{"tempchannel", "temp", "tc"} // Invokes and alias
+	return []string{"tempchannel", "temp", "tmp", "t"} // Invokes and alias
 }
 func (c *CmdTempChannel) Description() string {
 	return "Creates a temporary Channel for you and your friends.\nUsage: <prefix>tempchannel [channelname] [optional:max useranzahl]"
@@ -97,13 +101,13 @@ func (c *CmdTempChannel) CooldownLocked() bool {
 }
 func (c *CmdTempChannel) Exec(ctx *commands.Context) (err error) {
 	var tmpcategory *discordgo.Channel
-	tmpcategory, err = ctx.Session.Channel(c.CATEGORY_ID)
+	tmpcategory, err = ctx.Session.Channel(c.categoryID)
 	if err != nil {
 		return
 	}
 	// Channel type is just an int so we can compare them like this
 	if tmpcategory.Type != discordgo.ChannelTypeGuildCategory {
-		_, err = ctx.Session.ChannelMessageSend(ctx.Message.ChannelID, "Temp Channel category hasnt been configurated correctly!")
+		err = customerror.NewInvalidConfigurationError()
 		return
 	}
 
@@ -136,16 +140,21 @@ func (c *CmdTempChannel) Exec(ctx *commands.Context) (err error) {
 		return
 	}
 
+	if len([]rune(chName)) < 5 {
+		err = customerror.NewCustomError("That name is a little bit to short. Please choose a longer name (min 5 letters)!")
+		return
+	}
+
 	if limitSelected && (chLimit > 99 || chLimit < 1) {
 		err = customerror.NewCustomError("Invalid User limit. Please choose a number between 1-99!")
 		return
 	}
 
-	t, ok := c.TempChannels.Load(ctx.Message.Author.ID)
+	t, ok := c.cacheTempChannels.Cache.Load(ctx.Message.Author.ID)
 	// user has created a temp channel already
 	if ok {
-		triple := t.(TempChannelTriple)
-		_, err = ctx.Session.ChannelMessageSend(ctx.Message.ChannelID, fmt.Sprintf(":x: You already created a temp channel: `%s` %v seconds ago", triple.Channel.Name, (int)(-time.Until(triple.Created_at).Seconds())))
+		triple := t.(cache.TmpEntry)
+		err = customerror.NewExistingTempChannelError(triple.Channel.Name, (int)(-time.Until(triple.Created_at).Seconds()))
 		return
 	}
 
@@ -154,14 +163,14 @@ func (c *CmdTempChannel) Exec(ctx *commands.Context) (err error) {
 		tmpchannel = discordgo.GuildChannelCreateData{
 			Name:      chName,
 			Type:      discordgo.ChannelTypeGuildVoice,
-			ParentID:  c.CATEGORY_ID,
+			ParentID:  c.categoryID,
 			UserLimit: chLimit,
 		}
 	} else {
 		tmpchannel = discordgo.GuildChannelCreateData{
 			Name:     chName,
 			Type:     discordgo.ChannelTypeGuildVoice,
-			ParentID: c.CATEGORY_ID,
+			ParentID: c.categoryID,
 		}
 	}
 	newchannel, err := ctx.Session.GuildChannelCreateComplex(ctx.Message.GuildID, tmpchannel)
@@ -169,8 +178,8 @@ func (c *CmdTempChannel) Exec(ctx *commands.Context) (err error) {
 		return
 	}
 	// register channel creation in maps
-	c.TempChannels.Store(ctx.Message.Author.ID, TempChannelTriple{*newchannel, time.Now(), time.Now()})
-	c.TempChannelOwners.Store(newchannel.ID, ctx.Message.Author.ID)
+	c.cacheTempChannels.Cache.Store(ctx.Message.Author.ID, cache.NewEntry(newchannel, time.Now(), true, time.Now()))
+	c.cacheOwners.Cache.Store(newchannel.ID, ctx.Message.Author.ID)
 	ctx.Session.ChannelMessageSend(ctx.Message.ChannelID, fmt.Sprintf(":white_check_mark: Temporary Channel `%s` created.\nAttention: Channel will be deleted when nobody is in channel!", chName))
 
 	var newchannelInv *discordgo.Invite = &discordgo.Invite{
@@ -184,5 +193,106 @@ func (c *CmdTempChannel) Exec(ctx *commands.Context) (err error) {
 		return
 	}
 	ctx.Session.ChannelMessageSend(ctx.Message.ChannelID, fmt.Sprintf("https://discord.gg/%s", newchannelInv.Code))
+	fmt.Println(">>AFTER TEMPCMD")
+	c.cacheTempChannels.PrintCache(ctx.Session)
+	return
+}
+
+func (c *CmdTempChannel) ExecDM(ctx *commands.Context) (err error) {
+	var tmpcategory *discordgo.Channel
+	tmpcategory, err = ctx.Session.Channel(c.categoryID)
+	if err != nil {
+		return
+	}
+	// Channel type is just an int so we can compare them like this
+	if tmpcategory.Type != discordgo.ChannelTypeGuildCategory {
+		err = customerror.NewInvalidConfigurationError()
+		return
+	}
+
+	if len(ctx.Args) < 1 {
+		err = customerror.NewNotEnoughArgsError()
+		return
+	}
+
+	var chName string
+	var chLimit int = 0
+	var limitSelected bool = false
+	if len(ctx.Args) == 1 {
+		chName = ctx.Args[0]
+	} else {
+		//test if the user entered a number at the end -> user limit
+		chLimit, err = strconv.Atoi(ctx.Args[len(ctx.Args)-1])
+		if err == nil {
+			limitSelected = true
+		}
+		err = nil
+		if limitSelected {
+			chName = strings.Join(ctx.Args[:len(ctx.Args)-1], " ")
+		} else {
+			chName = strings.Join(ctx.Args[:len(ctx.Args)], " ")
+		}
+	}
+
+	if len([]rune(chName)) > 25 {
+		err = customerror.NewCustomError("That name is a little bit to long. Please choose a shorter name (max 25 letters)!")
+		return
+	}
+
+	if len([]rune(chName)) < 5 {
+		err = customerror.NewCustomError("That name is a little bit to short. Please choose a longer name (min 5 letters)!")
+		return
+	}
+
+	if limitSelected && (chLimit > 99 || chLimit < 1) {
+		err = customerror.NewCustomError("Invalid User limit. Please choose a number between 1-99!")
+		return
+	}
+
+	t, ok := c.cacheTempChannels.Cache.Load(ctx.Message.Author.ID)
+	// user has created a temp channel already
+	if ok {
+		triple := t.(cache.TmpEntry)
+		err = customerror.NewExistingTempChannelError(triple.Channel.Name, (int)(-time.Until(triple.Created_at).Seconds()))
+		return
+	}
+
+	var tmpchannel discordgo.GuildChannelCreateData
+	if limitSelected {
+		tmpchannel = discordgo.GuildChannelCreateData{
+			Name:      chName,
+			Type:      discordgo.ChannelTypeGuildVoice,
+			ParentID:  c.categoryID,
+			UserLimit: chLimit,
+		}
+	} else {
+		tmpchannel = discordgo.GuildChannelCreateData{
+			Name:     chName,
+			Type:     discordgo.ChannelTypeGuildVoice,
+			ParentID: c.categoryID,
+		}
+	}
+	newchannel, err := ctx.Session.GuildChannelCreateComplex(ctx.Session.State.Guilds[0].ID, tmpchannel)
+	if err != nil {
+		return
+	}
+	// register channel creation in maps
+	c.cacheTempChannels.Cache.Store(ctx.Message.Author.ID, cache.NewEntry(newchannel, time.Now(), true, time.Now()))
+	c.cacheOwners.Cache.Store(newchannel.ID, ctx.Message.Author.ID)
+	ctx.Session.ChannelMessageSend(ctx.Message.ChannelID, fmt.Sprintf(":white_check_mark: Temporary Channel `%s` created.\nAttention: Channel will be deleted when nobody is in channel!", chName))
+
+	var newchannelInv *discordgo.Invite = &discordgo.Invite{
+		MaxAge:    120, //duration (in seconds) after which the invite expires
+		MaxUses:   0,
+		Temporary: false,
+	}
+
+	newchannelInv, err = ctx.Session.ChannelInviteCreate(newchannel.ID, *newchannelInv)
+	if err != nil {
+		return
+	}
+	ctx.Session.ChannelMessageSend(ctx.Message.ChannelID, fmt.Sprintf("https://discord.gg/%s", newchannelInv.Code))
+	fmt.Println(">>AFTER TEMPCMD")
+	c.cacheTempChannels.PrintCache(ctx.Session)
 	return
 }

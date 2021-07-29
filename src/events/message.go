@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"strings"
 
+	customerror "github.com/Zanos420/bcethabot/src/error"
+	"github.com/Zanos420/bcethabot/src/error/internalerror"
 	"github.com/bwmarrin/discordgo"
 )
 
@@ -17,14 +19,14 @@ func NewMessageHandler() *MessageHandler {
 func (h *MessageHandler) Handler(s *discordgo.Session, e *discordgo.MessageCreate) {
 	channel, err := s.Channel(e.ChannelID)
 	if err != nil {
-		fmt.Println("Failed to fetch Channel: ", err)
+		internalerror.Error(customerror.NewCustomError("Failed to fetch Channel"))
 		return
 	}
-	fmt.Printf("User: %s, wrote %s, in: %s\n", e.Author.String(), e.Message.Content, channel.Name)
+	//fmt.Printf("User: %s, wrote %s, in: %s\n", e.Author.String(), e.Message.Content, channel.Name)
 	if strings.Contains(e.Message.Content, "<@!739902368635813930>") {
 		_, err := s.ChannelMessageSend(channel.ID, fmt.Sprintf("%s Ping mich noch einmal und es klatscht! :wave:", e.Author.Mention()))
 		if err != nil {
-			fmt.Printf("Failed to sent message: %s\n", err)
+			internalerror.Error(customerror.NewCustomError("Failed to sent message"))
 		}
 	}
 }
