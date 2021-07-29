@@ -13,6 +13,7 @@ import (
 	"github.com/Zanos420/bcethabot/src/commands"
 	"github.com/Zanos420/bcethabot/src/commands/cmd"
 	"github.com/Zanos420/bcethabot/src/commands/mw"
+	"github.com/Zanos420/bcethabot/src/error/internalerror"
 	"github.com/Zanos420/bcethabot/src/events"
 	"github.com/Zanos420/bcethabot/src/util/cache"
 	"github.com/bwmarrin/discordgo"
@@ -47,13 +48,15 @@ type Config struct {
 func parseConfigFromYAMLFile(fileName string) (*Config, error) {
 	buf, err := ioutil.ReadFile(fileName)
 	if err != nil {
-		panic(err)
+		internalerror.Fatal(err)
+		os.Exit(0)
 	}
 	var con *Config = new(Config)
 
 	err = yaml.Unmarshal(buf, con)
 	if err != nil {
-		panic(err)
+		internalerror.Fatal(err)
+		os.Exit(0)
 	}
 	return con, err
 }
@@ -63,31 +66,35 @@ func init() {
 	rootdir, err := os.Getwd()
 	rootdir = filepath.Dir(rootdir)
 	if err != nil {
-		panic(err)
+		internalerror.Fatal(err)
+		os.Exit(0)
 	}
 	fmt.Println(rootdir)
 	configPath, err := filepath.Abs(rootdir + "/config/config.yaml")
 	if err != nil {
-		panic(err)
+		internalerror.Fatal(err)
+		os.Exit(0)
 	}
 	fmt.Println(configPath)
 	config, err = parseConfigFromYAMLFile(configPath)
 	if err != nil {
-		panic(err)
+		internalerror.Fatal(err)
+		os.Exit(0)
 	}
 }
 
 /* bot creation */
 func main() {
 	// Create a new Discord session using the provided bot token.
-	fmt.Printf("Running on Auth-Token: %s\n", config.BOT.TOKEN)
+	internalerror.Info("Running on Auth-Token: %s", config.BOT.TOKEN)
 	bot, err := discordgo.New("Bot " + config.BOT.TOKEN)
 	if err != nil {
-		panic(err)
+		internalerror.Fatal(err)
+		os.Exit(0)
 	}
 
 	// bot should be able to listen to all events -> scaling shouldnt be a problem
-	bot.Identify.Intents = discordgo.MakeIntent(discordgo.IntentsAllWithoutPrivileged)
+	bot.Identify.Intents = discordgo.MakeIntent(discordgo.IntentsAllWithoutPrivileged | discordgo.IntentsGuildMembers)
 	bot.StateEnabled = true // cache guild, members, ...
 	//initialize internal caches (temporary channel functions)
 	initializeCaches()
@@ -98,7 +105,8 @@ func main() {
 
 	err = bot.Open()
 	if err != nil {
-		panic(err)
+		internalerror.Fatal(err)
+		os.Exit(0)
 	}
 
 	fmt.Println("Bot is running... Press Ctlr-C to exit.")
@@ -119,7 +127,7 @@ func registerEvents(s *discordgo.Session, cfg *Config) {
 	s.AddHandler(events.NewMessageHandler().Handler)
 	s.AddHandler(events.NewReadyHandler().Handler)
 	s.AddHandler(events.NewVoiceStateUpdateHandler(cacheTempChannels, cacheOwners, cfg.VAR.CATEGORYID).Handler)
-	fmt.Println("Successfully hooked all Event Handlers")
+	internalerror.Info("Successfully hooked all Event Handlers")
 }
 
 func registerCommands(s *discordgo.Session, cfg *Config) {
@@ -138,7 +146,8 @@ func registerCommands(s *discordgo.Session, cfg *Config) {
 	// Middlewares
 	modcmd, err := strconv.ParseBool(cfg.VAR.MODCMD)
 	if err != nil {
-		panic(err)
+		internalerror.Fatal(err)
+		os.Exit(0)
 	}
 	if modcmd {
 		cmdHandler.RegisterMiddleware(mw.NewMwPermissions(cfg.VAR.MODROLEID))
@@ -146,21 +155,24 @@ func registerCommands(s *discordgo.Session, cfg *Config) {
 
 	cooldown, err := strconv.ParseBool(cfg.VAR.COOLDOWN)
 	if err != nil {
-		panic(err)
+		internalerror.Fatal(err)
+		os.Exit(0)
 	}
 	modexcluded, err := strconv.ParseBool(cfg.VAR.MODEXCLUDED)
 	if err != nil {
-		panic(err)
+		internalerror.Fatal(err)
+		os.Exit(0)
 	}
 	if cooldown {
 		cooldownseconds, err := strconv.Atoi(cfg.VAR.COOLDOWNSECONDS)
 		if err != nil {
-			panic(err)
+			internalerror.Fatal(err)
+			os.Exit(0)
 		}
 		cmdHandler.RegisterMiddleware(mw.NewMwCooldown(cooldownseconds, modexcluded, cfg.VAR.MODROLEID))
 	}
 
 	s.AddHandler(cmdHandler.HandleMessage)
-	fmt.Println("Successfully hooked all Command Handlers and Middlewares")
+	internalerror.Info("Successfully hooked all Command Handlers and Middlewares")
 
 }

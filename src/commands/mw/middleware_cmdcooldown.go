@@ -1,5 +1,6 @@
 package mw
 
+// Cooldown Middleware Module
 import (
 	"fmt"
 	"sync"
@@ -7,7 +8,6 @@ import (
 
 	"github.com/Zanos420/bcethabot/src/commands"
 	customerror "github.com/Zanos420/bcethabot/src/error"
-	"github.com/bwmarrin/discordgo"
 )
 
 // All Users without special role get cooldown blocked when they issue a cooldown command
@@ -45,8 +45,6 @@ func (mw *MwCooldown) HeartBeatCleanUp() {
 		for {
 			select {
 			case <-ticker.C:
-				//fmt.Println("Cleaning cooldowns...")
-				var removedCooldowns int
 				// iterate over all userids and ther slices of Pairs
 				mw.usersOnCooldown.Range(func(key, value interface{}) bool {
 					pairList := value.([]Pair)
@@ -61,12 +59,10 @@ func (mw *MwCooldown) HeartBeatCleanUp() {
 							// if so we delete the pair of cmd and issued_at
 							value = pairList[1:]
 							mw.usersOnCooldown.Store(key.(string), value)
-							removedCooldowns++
 						}
 					}
 					return true
 				})
-				//fmt.Printf("Removed %v cooldowns\n", removedCooldowns)
 			case <-quit:
 				ticker.Stop()
 				return
@@ -82,23 +78,69 @@ func (mw *MwCooldown) Exec(ctx *commands.Context, cmd commands.Command) (next bo
 		return
 	}
 
+	member, err := ctx.Session.GuildMember(ctx.Session.State.Guilds[0].ID, ctx.Message.Author.ID)
+
+	if err != nil {
+		err = customerror.NewNoSharedGuildError()
+		return
+	}
+
 	// if mods are excluded from the cooldown
 	if mw.modexcluded {
-		var guild *discordgo.Guild
-		guild, err = ctx.Session.Guild(ctx.Message.GuildID)
-		if err != nil {
-			return
+		// check if any of the authors roles has the mod role set in config.yaml
+		for _, rID := range member.Roles {
+			if mw.modroleID == rID {
+				next = true
+				return
+			}
 		}
+	}
 
-		roleMap := make(map[string]*discordgo.Role)
-
-		// collect all guild roles
-		for _, role := range guild.Roles {
-			roleMap[role.ID] = role
+	cmdL, ok := mw.usersOnCooldown.Load(ctx.Message.Author.ID)
+	if ok {
+		var pairList []Pair = cmdL.([]Pair)
+		// user already on cooldown
+		// check cmd list the user is on cooldown for
+		for _, pair := range pairList {
+			if pair.cmd == cmd {
+				err = customerror.NewCommandOnCooldownErrorError((int)(float64(mw.coolDownSeconds) + time.Until(pairList[0].issued_at).Seconds()))
+				//mw.printMap(mw.usersOnCooldown)
+				return
+			}
 		}
+		// add this command to his cooldown list -> first item in the list is always the longest command being issued
+		pairList = append(pairList, Pair{cmd: cmd, issued_at: time.Now()})
+		mw.usersOnCooldown.Store(ctx.Message.Author.ID, pairList)
+		next = true
+		//mw.printMap(mw.usersOnCooldown)
+		return
+	} else {
+		// create new entry with the current command
+		var pairList []Pair = []Pair{}
+		pairList = append(pairList, Pair{cmd: cmd, issued_at: time.Now()})
+		mw.usersOnCooldown.Store(ctx.Message.Author.ID, pairList)
+		next = true
+		//mw.printMap(mw.usersOnCooldown)
+		return
+	}
+}
 
-		// check if any of the authors roles has admin perms or is the mod role set in config.yaml
-		for _, rID := range ctx.Message.Member.Roles {
+func (mw *MwCooldown) ExecDM(ctx *commands.Context, cmd commands.Command) (next bool, err error) {
+	if !cmd.CooldownLocked() {
+		next = true // deal with next mw/excecute command
+		return
+	}
+	member, err := ctx.Session.GuildMember(ctx.Session.State.Guilds[0].ID, ctx.Message.Author.ID)
+
+	if err != nil {
+		err = customerror.NewNoSharedGuildError()
+		return
+	}
+
+	// if mods are excluded from the cooldown
+	if mw.modexcluded {
+		// check if any of the authors roles has the mod role set in config.yaml
+		for _, rID := range member.Roles {
 			if mw.modroleID == rID {
 				next = true
 				return

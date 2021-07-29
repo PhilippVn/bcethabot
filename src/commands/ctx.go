@@ -1,5 +1,6 @@
 package commands
 
+// Context Module
 import "github.com/bwmarrin/discordgo"
 
 // Context Object

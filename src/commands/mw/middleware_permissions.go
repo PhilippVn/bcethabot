@@ -1,8 +1,9 @@
 package mw
 
+// Permission Middleware Module
 import (
 	"github.com/Zanos420/bcethabot/src/commands"
-	"github.com/bwmarrin/discordgo"
+	customerror "github.com/Zanos420/bcethabot/src/error"
 )
 
 // permission middleware implements middleware
@@ -26,33 +27,49 @@ func (mw *MwPermissions) Exec(ctx *commands.Context, cmd commands.Command) (next
 	// will be excecuted after return of Exec()
 	defer func() {
 		if !next && err == nil {
-			_, err = ctx.Session.ChannelMessageSend(ctx.Message.ChannelID, "You dont have permission to use this command!")
+			err = customerror.NewMissingPermissionsError()
 		}
 	}()
 
-	guild, err := ctx.Session.Guild(ctx.Message.GuildID)
+	member, err := ctx.Session.GuildMember(ctx.Session.State.Guilds[0].ID, ctx.Message.Author.ID)
+
 	if err != nil {
+		err = customerror.NewNoSharedGuildError()
 		return
 	}
 
-	// if guild.OwnerID == ctx.Message.Author.ID { // owner of the guild
-	// 	next = true
-	// 	return
-	// }
+	// check if any of the authors roles is the mod role set in config.yaml
+	for _, rID := range member.Roles {
+		if mw.modRoleID == rID {
+			next = true
+			break
+		}
+	}
+	return // if next is not set to true > excecution will stop
+}
 
-	roleMap := make(map[string]*discordgo.Role)
-
-	// collect all guild roles
-	for _, role := range guild.Roles {
-		roleMap[role.ID] = role
+func (mw *MwPermissions) ExecDM(ctx *commands.Context, cmd commands.Command) (next bool, err error) {
+	if !cmd.PermissionsNeeded() {
+		next = true // deal with next mw/excecute command
+		return
 	}
 
-	// check if any of the authors roles has admin perms or is the mod role set in config.yaml
-	for _, rID := range ctx.Message.Member.Roles {
-		// if role, ok := roleMap[rID]; ok && role.Permissions&discordgo.PermissionAdministrator > 0 { // logical and with 0b1000 = admin
-		// 	next = true
-		// 	break
-		// }
+	// will be excecuted after return of Exec()
+	defer func() {
+		if !next && err == nil {
+			err = customerror.NewMissingPermissionsError()
+		}
+	}()
+
+	member, err := ctx.Session.GuildMember(ctx.Session.State.Guilds[0].ID, ctx.Message.Author.ID)
+
+	if err != nil {
+		err = customerror.NewNoSharedGuildError()
+		return
+	}
+
+	// check if any of the authors roles is the mod role set in config.yaml
+	for _, rID := range member.Roles {
 		if mw.modRoleID == rID {
 			next = true
 			break

@@ -1,5 +1,6 @@
 package commands
 
+// Command Handler Module that manages Commands and Middlewares through a message event
 import (
 	"fmt"
 	"strings"
@@ -73,20 +74,44 @@ func (c *CommandHandler) HandleMessage(s *discordgo.Session, e *discordgo.Messag
 		Handler: c,
 	}
 
-	// Excecute Middlewares before command
-	for _, mw := range c.middlewares {
-		next, err := mw.Exec(ctx, cmd)
-		if err != nil {
-			c.OnError(err, ctx) // Call Command Error Handler
-			return              // Stop Command Excecution
+	if ctx.Message.GuildID == "" {
+		guild := ctx.Session.State.Guilds[0]
+		for _, member := range guild.Members {
+			fmt.Println(member.User.String())
 		}
-		if !next {
-			return // no further processing
+		//Dm command
+		// Excecute Middlewares before command
+		for _, mw := range c.middlewares {
+			next, err := mw.ExecDM(ctx, cmd)
+			if err != nil {
+				c.OnError(err, ctx) // Call Command Error Handler
+				return              // Stop Command Excecution
+			}
+			if !next {
+				return // no further processing
+			}
 		}
-	}
 
-	// Excecute the Command itsself
-	if err := cmd.Exec(ctx); err != nil {
-		c.OnError(err, ctx)
+		// Excecute the Command itsself
+		if err := cmd.ExecDM(ctx); err != nil {
+			c.OnError(err, ctx)
+		}
+	} else {
+		// Excecute Middlewares before command
+		for _, mw := range c.middlewares {
+			next, err := mw.Exec(ctx, cmd)
+			if err != nil {
+				c.OnError(err, ctx) // Call Command Error Handler
+				return              // Stop Command Excecution
+			}
+			if !next {
+				return // no further processing
+			}
+		}
+
+		// Excecute the Command itsself
+		if err := cmd.Exec(ctx); err != nil {
+			c.OnError(err, ctx)
+		}
 	}
 }

@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"time"
 
+	customerror "github.com/Zanos420/bcethabot/src/error"
+	"github.com/Zanos420/bcethabot/src/error/internalerror"
 	"github.com/Zanos420/bcethabot/src/util/cache"
 	"github.com/bwmarrin/discordgo"
 )
@@ -33,12 +35,12 @@ func (h *VoiceStateUpdateHandler) Handler(s *discordgo.Session, e *discordgo.Voi
 	now := e.VoiceState
 	guild, err := s.State.Guild(e.GuildID)
 	if err != nil {
-		fmt.Println("Failed to fetch Guild from State: ", err)
+		internalerror.Error(customerror.NewCustomError("Failed to fetch Guild from State"))
 		return
 	}
 
 	if before == nil && now == nil {
-		fmt.Println("Fatal Error while fetching VoiceStates: Both nil values")
+		internalerror.Error(customerror.NewCustomError("Both States are nil. Shouldnt be possible"))
 		return
 	}
 
@@ -49,12 +51,11 @@ func (h *VoiceStateUpdateHandler) Handler(s *discordgo.Session, e *discordgo.Voi
 		// we only have to check now -> if before doesnt exist it means this is a first time connect from this user to the now channel
 		ch, err := s.Channel(now.ChannelID)
 		if err != nil {
-			fmt.Println("Failed to fetch temp channel: ", err)
+			internalerror.Error(customerror.NewCustomError("Failed to fetch temp channel"))
 			return
 		}
 		// not a temp channel
 		if ch.ParentID != h.categoryID {
-			fmt.Println("Not a Temp Channel")
 			return
 		}
 		//temp channel -> count users connected
@@ -64,14 +65,14 @@ func (h *VoiceStateUpdateHandler) Handler(s *discordgo.Session, e *discordgo.Voi
 		chO, ok := h.cacheOwners.Cache.Load(ch.ID)
 		if !ok {
 			// channel not cached -> not created by bot
-			fmt.Println("Error while trying to fetch ownerid of tempchannel to update empty_since time of tmp channel")
+			internalerror.Error(customerror.NewCustomError("Couldnt fetch OwnerId as Key for Cache"))
 			return
 		}
 		chOwnerID := chO.(string)
 		mapE, ok := h.cacheTempChannels.Cache.Load(chOwnerID)
 		if !ok {
 			// channel not cached -> not created by bot
-			fmt.Println("Error while trying to fetch ownerid of tempchannel to update empty_since time of tmp channel")
+			internalerror.Error(customerror.NewCustomError("Couldnt fetch OwnerId as Key for Cache"))
 			return
 		}
 		mapEntryOld := mapE.(cache.TmpEntry)
@@ -88,7 +89,7 @@ func (h *VoiceStateUpdateHandler) Handler(s *discordgo.Session, e *discordgo.Voi
 		// we only have to check before -> if now doesnt exist this means the user disconnected completely
 		ch, err := s.Channel(before.ChannelID)
 		if err != nil {
-			fmt.Println("Failed to fetch temp channel: ", err)
+			internalerror.Error(customerror.NewCustomError("Couldnt fetch temp channel"))
 			return
 		}
 		// not a temp channel
@@ -100,13 +101,13 @@ func (h *VoiceStateUpdateHandler) Handler(s *discordgo.Session, e *discordgo.Voi
 		connectedUsers := countConnectedUsers(guild.VoiceStates, ch.ID)
 		chO, ok := h.cacheOwners.Cache.Load(ch.ID)
 		if !ok {
-			fmt.Println("Error while trying to fetch ownerid of tempchannel to update empty_since time of tmp channel")
+			internalerror.Error(customerror.NewCustomError("Couldnt fetch OwnerId as Key for Cache"))
 			return
 		}
 		chOwnerID := chO.(string)
 		mapE, ok := h.cacheTempChannels.Cache.Load(chOwnerID)
 		if !ok {
-			fmt.Println("Error while trying to fetch ownerid of tempchannel to update empty_since time of tmp channel")
+			internalerror.Error(customerror.NewCustomError("Couldnt fetch OwnerId as Key for Cache"))
 			return
 		}
 		mapEntryOld := mapE.(cache.TmpEntry)
@@ -124,14 +125,14 @@ func (h *VoiceStateUpdateHandler) Handler(s *discordgo.Session, e *discordgo.Voi
 		// there is a before and after state
 		channelBefore, err := s.Channel(before.ChannelID)
 		if err != nil {
-			fmt.Println("Failed to fetch temp channel from BeforeState: ", err)
+			internalerror.Error(customerror.NewCustomError("Failed to fetch temp channel from BeforeState"))
 			return
 		}
 		channelNow, err := s.Channel(now.ChannelID)
 		fmt.Println(now.ChannelID)
 		fmt.Println(e.VoiceState.ChannelID)
 		if err != nil {
-			fmt.Println("Failed to fetch temp channel from NowState: ", err)
+			internalerror.Error(customerror.NewCustomError("Failed to fetch temp channel from NowState"))
 			return
 		}
 
@@ -145,7 +146,6 @@ func (h *VoiceStateUpdateHandler) Handler(s *discordgo.Session, e *discordgo.Voi
 		if channelBefore.ID == channelNow.ID {
 			//both the same channel (no switch)
 			if !channelNowIsTemp {
-				fmt.Println("Not a Temp Channel")
 				return
 			}
 			// temp channel
@@ -153,14 +153,14 @@ func (h *VoiceStateUpdateHandler) Handler(s *discordgo.Session, e *discordgo.Voi
 			chO, ok := h.cacheOwners.Cache.Load(channelNow.ID)
 			if !ok {
 				// channel not cached -> not created by bot
-				fmt.Println("Error while trying to fetch ownerid of tempchannel to update empty_since time of tmp channel")
+				internalerror.Error(customerror.NewCustomError("Couldnt fetch OwnerId as Key for Cache"))
 				return
 			}
 			chOwnerID := chO.(string)
 			mapE, ok := h.cacheTempChannels.Cache.Load(chOwnerID)
 			if !ok {
 				// channel not cached -> not created by bot
-				fmt.Println("Error while trying to fetch ownerid of tempchannel to update empty_since time of tmp channel")
+				internalerror.Error(customerror.NewCustomError("Couldnt fetch OwnerId as Key for Cache"))
 				return
 			}
 			mapEntryOld := mapE.(cache.TmpEntry)
@@ -180,14 +180,14 @@ func (h *VoiceStateUpdateHandler) Handler(s *discordgo.Session, e *discordgo.Voi
 				chO, ok := h.cacheOwners.Cache.Load(channelBefore.ID)
 				if !ok {
 					// channel not cached -> not created by bot
-					fmt.Println("Error while trying to fetch ownerid of tempchannel to update empty_since time of tmp channel")
+					internalerror.Error(customerror.NewCustomError("Couldnt fetch OwnerId as Key for Cache"))
 					return
 				}
 				chOwnerID := chO.(string)
 				mapE, ok := h.cacheTempChannels.Cache.Load(chOwnerID)
 				if !ok {
 					// channel not cached -> not created by bot
-					fmt.Println("Error while trying to fetch ownerid of tempchannel to update empty_since time of tmp channel")
+					internalerror.Error(customerror.NewCustomError("Couldnt fetch OwnerId as Key for Cache"))
 					return
 				}
 				mapEntryOld := mapE.(cache.TmpEntry)
@@ -206,14 +206,14 @@ func (h *VoiceStateUpdateHandler) Handler(s *discordgo.Session, e *discordgo.Voi
 				chO, ok := h.cacheOwners.Cache.Load(channelNow.ID)
 				if !ok {
 					// channel not cached -> not created by bot
-					fmt.Println("Error while trying to fetch ownerid of tempchannel to update empty_since time of tmp channel")
+					internalerror.Error(customerror.NewCustomError("Couldnt fetch OwnerId as Key for Cache"))
 					return
 				}
 				chOwnerID := chO.(string)
 				mapE, ok := h.cacheTempChannels.Cache.Load(chOwnerID)
 				if !ok {
 					// channel not cached -> not created by bot
-					fmt.Println("Error while trying to fetch ownerid of tempchannel to update empty_since time of tmp channel")
+					internalerror.Error(customerror.NewCustomError("Couldnt fetch OwnerId as Key for Cache"))
 					return
 				}
 				mapEntryOld := mapE.(cache.TmpEntry)
