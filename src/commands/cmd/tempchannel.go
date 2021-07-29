@@ -135,13 +135,13 @@ func (c *CmdTempChannel) Exec(ctx *commands.Context) (err error) {
 		}
 	}
 
-	if len([]rune(chName)) > 25 {
-		err = customerror.NewCustomError("That name is a little bit to long. Please choose a shorter name (max 25 letters)!")
+	if len([]rune(chName)) > 30 {
+		err = customerror.NewCustomError("That name is a little bit to long. Please choose a shorter name (max 30 letters)!")
 		return
 	}
 
-	if len([]rune(chName)) < 5 {
-		err = customerror.NewCustomError("That name is a little bit to short. Please choose a longer name (min 5 letters)!")
+	if len([]rune(chName)) < 3 {
+		err = customerror.NewCustomError("That name is a little bit to short. Please choose a longer name (min 3 letters)!")
 		return
 	}
 
