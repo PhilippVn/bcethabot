@@ -109,6 +109,8 @@ func main() {
 		os.Exit(0)
 	}
 
+	bot.UpdateListeningStatus(fmt.Sprintf("Prefix %s", config.BOT.PREFIX))
+
 	fmt.Println("Bot is running... Press Ctlr-C to exit.")
 	sc := make(chan os.Signal, 1)
 	signal.Notify(sc, syscall.SIGINT, syscall.SIGTERM, os.Interrupt, os.Kill)
