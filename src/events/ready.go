@@ -24,6 +24,7 @@ func NewReadyHandler(prefix string) *ReadyHandler {
 // notice the type of the Handler method which is a method of ReadyHandler
 func (h *ReadyHandler) Handler(s *discordgo.Session, e *discordgo.Ready) {
 	if !firstTime {
+		s.UpdateListeningStatus(fmt.Sprintf("Prefix %s", h.Prefix))
 		return
 	}
 	fmt.Println("----------------------------------------")
