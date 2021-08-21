@@ -35,7 +35,7 @@ func (c *CmdPing) Exec(ctx *commands.Context) (err error) {
 	if err != nil {
 		return
 	}
-	_, err = ctx.Session.ChannelMessageEdit(msg.ChannelID, msg.ID, fmt.Sprintf("🏓Pong! (Took %v ms)", ping))
+	_, err = ctx.Session.ChannelMessageEdit(msg.ChannelID, msg.ID, fmt.Sprintf("🏓Pong! (Took %v ms)", ping.Milliseconds()))
 	return
 }
 
@@ -46,6 +46,6 @@ func (c *CmdPing) ExecDM(ctx *commands.Context) (err error) {
 	if err != nil {
 		return
 	}
-	_, err = ctx.Session.ChannelMessageEdit(msg.ChannelID, msg.ID, fmt.Sprintf("🏓Pong! (Took %v ms)", ping))
+	_, err = ctx.Session.ChannelMessageEdit(msg.ChannelID, msg.ID, fmt.Sprintf("🏓Pong! (Took %v ms)", ping.Milliseconds()))
 	return
 }
