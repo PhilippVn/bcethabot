@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/Zanos420/bcethabot/src/commands"
-	"github.com/bwmarrin/discordgo"
 )
 
 type CmdPing struct{}
@@ -30,17 +29,23 @@ func (c *CmdPing) CooldownLocked() bool {
 }
 
 func (c *CmdPing) Exec(ctx *commands.Context) (err error) {
-	p, err := discordgo.SnowflakeTimestamp(ctx.Message.ID)
-	diff := time.Until(p)
-	ping := diff.Milliseconds()
-	ctx.Session.ChannelMessageSend(ctx.Message.ChannelID, fmt.Sprintf("🏓Pong! (Took %v ms)", ping))
+	start := time.Now()
+	msg, err := ctx.Session.ChannelMessageSend(ctx.Message.ChannelID, "🏓Pong!")
+	ping := time.Since(start)
+	if err != nil {
+		return
+	}
+	_, err = ctx.Session.ChannelMessageEdit(msg.ChannelID, msg.ID, fmt.Sprintf("🏓Pong! (Took %v ms)", ping))
 	return
 }
 
 func (c *CmdPing) ExecDM(ctx *commands.Context) (err error) {
-	p, err := discordgo.SnowflakeTimestamp(ctx.Message.ID)
-	diff := time.Until(p)
-	ping := diff.Milliseconds()
-	ctx.Session.ChannelMessageSend(ctx.Message.ChannelID, fmt.Sprintf("🏓Pong! (Took %v ms)", ping))
+	start := time.Now()
+	msg, err := ctx.Session.ChannelMessageSend(ctx.Message.ChannelID, "🏓Pong!")
+	ping := time.Since(start)
+	if err != nil {
+		return
+	}
+	_, err = ctx.Session.ChannelMessageEdit(msg.ChannelID, msg.ID, fmt.Sprintf("🏓Pong! (Took %v ms)", ping))
 	return
 }
