@@ -62,6 +62,8 @@ func (c *CmdHelp) Exec(ctx *commands.Context) (err error) {
 	if err != nil {
 		return
 	}
+
+	emb.AddField("__**Bot Info**__", "'\u200b'")
 	emb.AddField("Uptime", formatDuration(time.Since(c.UpTime)))
 	emb.AddField("Go Version", runtime.Version())
 	emb.AddField("Running on", runtime.GOOS)
@@ -98,6 +100,7 @@ func (c *CmdHelp) ExecDM(ctx *commands.Context) (err error) {
 	if err != nil {
 		return
 	}
+	emb.AddField("__**Bot Info**__", "'\u200b'")
 	emb.AddField("Uptime", formatDuration(time.Since(c.UpTime)))
 	emb.AddField("Go Version", runtime.Version())
 	emb.AddField("Running on", runtime.GOOS)
