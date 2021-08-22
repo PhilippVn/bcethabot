@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"runtime"
 	"strings"
+	"time"
 
 	embed "github.com/Clinet/discordgo-embed" // go helper libary for parsing embeds
 	"github.com/Zanos420/bcethabot/src/commands"
@@ -13,10 +14,11 @@ import (
 )
 
 type CmdHelp struct {
+	UpTime time.Time
 }
 
-func NewCmdHelp() *CmdHelp {
-	return &CmdHelp{}
+func NewCmdHelp(uptime time.Time) *CmdHelp {
+	return &CmdHelp{UpTime: uptime}
 }
 
 func (c *CmdHelp) Invokes() []string {
@@ -60,6 +62,7 @@ func (c *CmdHelp) Exec(ctx *commands.Context) (err error) {
 	if err != nil {
 		return
 	}
+	emb.AddField("Uptime", formatDuration(time.Since(c.UpTime)))
 	emb.AddField("Go Version", runtime.Version())
 	emb.AddField("Running on", runtime.GOOS)
 	emb.SetFooter(fmt.Sprintf("Made by %s • If you find any bugs or want to contribute contact me", owner), owner.AvatarURL(""))
@@ -95,11 +98,28 @@ func (c *CmdHelp) ExecDM(ctx *commands.Context) (err error) {
 	if err != nil {
 		return
 	}
+	emb.AddField("Uptime", formatDuration(time.Since(c.UpTime)))
 	emb.AddField("Go Version", runtime.Version())
 	emb.AddField("Running on", runtime.GOOS)
 	emb.SetFooter(fmt.Sprintf("Made by %s • If you find any bugs or want to contribute contact me", owner), owner.AvatarURL(""))
 
 	_, err = ctx.Session.ChannelMessageSendEmbed(ctx.Message.ChannelID, emb.MessageEmbed)
 
+	return
+}
+
+func formatDuration(duration time.Duration) (s string) {
+	duration = duration.Round(time.Second) // pass by value
+	DAY := 24 * time.Hour                  // libary doesnt provide it
+
+	days := duration / DAY
+	duration -= days * DAY
+	hours := duration / time.Hour
+	duration -= hours * time.Hour
+	minutes := duration / time.Minute
+	duration -= minutes * time.Minute
+	seconds := duration / time.Second
+
+	s = fmt.Sprintf("%0dd %0dh %0dm %0ds", days, hours, minutes, seconds)
 	return
 }

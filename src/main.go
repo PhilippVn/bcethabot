@@ -7,6 +7,7 @@ import (
 	"os/signal"
 	"strconv"
 	"syscall"
+	"time"
 
 	"path/filepath"
 
@@ -141,7 +142,7 @@ func registerCommands(s *discordgo.Session, cfg *Config) {
 	cmdHandler.RegisterCommand(cmd.NewCmdNuke(cacheTempChannels, cacheOwners, cfg.VAR.CATEGORYID))
 
 	// Help command after registrating all other commands
-	cmdHandler.RegisterCommand(cmd.NewCmdHelp())
+	cmdHandler.RegisterCommand(cmd.NewCmdHelp(time.Now()))
 
 	// Middlewares
 	modcmd, err := strconv.ParseBool(cfg.VAR.MODCMD)
